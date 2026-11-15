@@ -1,0 +1,9 @@
+JAMRA — third-party assets
+- CesiumMan (person model): (c) 2017 Cesium, CC BY 4.0 — KhronosGroup/glTF-Sample-Assets
+- Fox (animal model): (c) 2014 tomkranis (rig/animation), (c) 2017 AsoboStudio & scurest (glTF), CC BY 4.0 — KhronosGroup/glTF-Sample-Assets
+- YOLOv8 models: Ultralytics, AGPL-3.0
+- Satellite basemap: Esri World Imagery (Esri, Maxar, Earthstar Geographics)
+- Sentinel-2 cloudless: EOX IT Services, CC BY 4.0 (contains modified Copernicus Sentinel data)
+- ESA WorldCover 2021, CC BY 4.0
+- Buildings & roads: OpenStreetMap contributors, ODbL
+- Terrain: SRTM 30 m (NASA/USGS)

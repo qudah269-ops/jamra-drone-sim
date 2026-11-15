@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جمرة · محاكاة مهمّة الدرون — غابة برقش</title>
+<style>
+  :root { --bg:#071016; --panel:#0e1c24; --line:#1d3340; --text:#e7f0f4; --muted:#8fa7b3; --accent:#ff7a2f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: Tahoma, "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  header { height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; white-space: nowrap; }
+  header h1 small { color: var(--muted); font-weight: 400; }
+  header .grow { flex: 1; }
+  header a { color: var(--text); text-decoration: none; font-size: 14px; padding: 7px 12px;
+    border: 1px solid var(--line); border-radius: 8px; white-space: nowrap; }
+  header a:hover, header a:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+  #stage { position: relative; height: calc(100% - 52px); }
+  #unity-canvas { display: block; width: 100%; height: 100%; background: #000; outline: none; }
+  #loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; background: var(--bg); }
+  #loading .bar { width: min(360px, 70vw); height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  #loading .fill { width: 0; height: 100%; background: var(--accent); transition: width .2s; }
+  #loading p { margin: 0; color: var(--muted); font-size: 14px; text-align: center; padding: 0 16px; }
+  #warn { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); max-width: 90%;
+    background: #3a1d0b; border: 1px solid var(--accent); color: var(--text); padding: 8px 14px;
+    border-radius: 8px; font-size: 13px; display: none; }
+  .keys { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  @media (max-width: 760px) { header h1 small, .keys { display: none; } header { gap: 8px; padding: 0 10px; } header a { padding: 6px 8px; font-size: 13px; } }
+</style>
+<script src="jamra-host.js"></script>
+<script>
+  // إعدادات الأداء (يقرأها WebTuning.cs). تُجرَّب من الرابط بلا إعادة بناء، مثلاً:
+  //   index.html?trees=40000&gimbalHz=3&post=0&shadows=0&scale=0.8
+  window.JAMRA_TUNING = { trees: 80000, far: 1600, gimbalHz: 5, post: 1, shadows: 1, scale: 1 };
+  new URLSearchParams(location.search).forEach((v, k) => {
+    if (k in window.JAMRA_TUNING && v !== '' && !isNaN(+v)) window.JAMRA_TUNING[k] = +v;
+  });
+</script>
+</head>
+<body>
+<header>
+  <h1>جمرة <small>· محاكاة مهمّة الدرون · غابة برقش</small></h1>
+  <span class="grow"></span>
+  <span class="keys">T طيار آلي · Space إسقاط كرة · WASD/QE طيران</span>
+  <a href="dashboard.html" target="_blank" data-win="jamra_dash">مركز البلاغات ↗</a>
+  <a href="detect.html" target="_blank" data-win="jamra_detect">كاميرا المودل ↗</a>
+</header>
+<div id="stage">
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading">
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <p id="loadText">تحميل المحاكاة…</p>
+  </div>
+  <div id="warn"></div>
+</div>
+<script src="Build/WebGL.loader.js"></script>
+<script>
+  const canvas = document.getElementById('unity-canvas');
+  const warn = msg => { const w = document.getElementById('warn'); w.textContent = msg; w.style.display = 'block'; setTimeout(() => w.style.display = 'none', 8000); };
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent))
+    warn('المحاكاة ثقيلة على الموبايل — الأفضل فتحها من كمبيوتر.');
+  createUnityInstance(canvas, {
+    arguments: [],
+    dataUrl: "Build/WebGL.data.unityweb",
+    frameworkUrl: "Build/WebGL.framework.js.unityweb",
+    codeUrl: "Build/WebGL.wasm.unityweb",
+    streamingAssetsUrl: "StreamingAssets",
+    companyName: "DefaultCompany",
+    productName: "JAMRA_URP",
+    productVersion: "0.1.0",
+    showBanner: (msg, type) => { if (type !== 'warning') warn(msg); else console.warn(msg); }
+  }, p => {
+    document.getElementById('fill').style.width = Math.round(p * 100) + '%';
+    document.getElementById('loadText').textContent = 'تحميل المحاكاة… ' + Math.round(p * 100) + '٪';
+  }).then(unity => {
+    window.unityInstance = unity;
+    JamraHost.attach(unity);
+    document.getElementById('loading').remove();
+    canvas.focus();
+  }).catch(e => {
+    document.getElementById('loadText').textContent = 'تعذّر تشغيل المحاكاة: ' + e;
+  });
+  // الكيبورد يروح للعبة بعد أي نقرة عليها
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+  // اللوحة وصفحة الكشف في نافذة مستقلّة لا تبويب: المتصفّح يوقف اللعبة في التبويب المخفي
+  document.querySelectorAll('a[data-win]').forEach(a => a.addEventListener('click', e => {
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;   // الموبايل: تبويب عادي
+    const w = window.open(a.href, a.dataset.win, 'popup,width=1150,height=850');
+    if (w) { e.preventDefault(); w.focus(); }
+  }));
+</script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جمرة — مركز البلاغات</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap">
+<style>
+  :root {
+    --bg: #071016; --panel: #0d1b24; --line: #1d3442; --fg: #e3f1f7; --dim: #86a3b2;
+    --cyan: #5ce6ff; --amber: #ffa940; --red: #ff4a3d; --green: #5ff28c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif; font-size: 14px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 14px 20px; border-bottom: 1px solid var(--line); background: #08151d; }
+  header h1 { margin: 0; font-size: 20px; color: var(--cyan); letter-spacing: .3px; }
+  header h1 small { color: var(--dim); font-weight: 400; font-size: 14px; }
+  .conn { font-size: 13px; color: var(--dim); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  main { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; padding: 14px 20px 30px; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font-size: 15px; color: var(--cyan); font-weight: 600; }
+  .steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; grid-column: 1 / -1; }
+  @media (max-width: 980px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+          color: var(--dim); font-size: 13px; transition: .3s; }
+  .step b { display: block; font-size: 12px; margin-bottom: 4px; opacity: .7; }
+  .step.done { border-color: #2a5a4a; color: var(--green); }
+  .step.now { border-color: var(--amber); color: var(--amber); box-shadow: 0 0 12px rgba(255,169,64,.25); }
+  #map { height: 430px; border-radius: 8px; }
+  .alert { display: none; grid-column: 1 / -1; background: #3a0d0a; border: 2px solid var(--red);
+           color: #ffd9d4; border-radius: 10px; padding: 14px 18px; font-size: 16px; font-weight: 600;
+           animation: pulse 1.2s infinite; }
+  .alert.show { display: block; }
+  @keyframes pulse { 50% { box-shadow: 0 0 22px rgba(255,74,61,.55); } }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+  .kv span:nth-child(odd) { color: var(--dim); }
+  .ok { color: var(--green); } .bad { color: var(--amber); } .err { color: var(--red); }
+  #log { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; font-size: 13px; }
+  #log li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  #log li.warn { color: #ffb3ab; }
+  .report { display: none; }
+  .report.show { display: block; }
+  .report img { width: 100%; border-radius: 8px; border: 1px solid var(--line); background: #000; aspect-ratio: 16/9; object-fit: cover; }
+  .cause { margin-top: 10px; padding: 10px; border-right: 3px solid var(--amber); background: #10222c; border-radius: 6px; line-height: 1.7; }
+  .chan { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: 12px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--line); color: var(--dim); }
+  .chip.sent { border-color: var(--green); color: var(--green); }
+  .chip.fail { border-color: var(--red); color: var(--red); }
+  details { grid-column: 1 / -1; }
+  summary { cursor: pointer; color: var(--cyan); }
+  label { display: block; margin: 10px 0 4px; color: var(--dim); font-size: 13px; }
+  input { width: 100%; padding: 8px 10px; background: #08151d; color: var(--fg); border: 1px solid var(--line);
+          border-radius: 6px; font-family: inherit; direction: ltr; text-align: left; }
+  button { margin-top: 12px; padding: 8px 16px; background: #123a4a; color: var(--fg); border: 1px solid var(--cyan);
+           border-radius: 6px; cursor: pointer; font-family: inherit; }
+  button:hover { background: #18506a; }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.7; margin-top: 8px; }
+  .leaflet-container { background: #0b1a22; }
+</style>
+</head>
+<body>
+<header>
+  <h1>جمرة <small>· مركز البلاغات · غابة برقش</small></h1>
+  <div class="conn"><span class="dot" id="dot"></span><span id="connText">بانتظار المحاكاة…</span></div>
+</header>
+
+<main>
+  <div class="steps" id="steps">
+    <div class="step" data-s="0"><b>1</b>القمران رصدا حريقاً محتملاً</div>
+    <div class="step" data-s="1"><b>2</b>الدرون في الطريق</div>
+    <div class="step" data-s="2"><b>3</b>الكاميرا كشفت النار</div>
+    <div class="step" data-s="3"><b>4</b>فحص: أشخاص وحيوانات</div>
+    <div class="step" data-s="4"><b>5</b>الإخماد بالكرات</div>
+    <div class="step" data-s="5"><b>6</b>تقرير للدفاع المدني</div>
+  </div>
+
+  <div class="alert" id="personAlert"></div>
+
+  <section class="card">
+    <h2>الخريطة الحيّة</h2>
+    <div id="map"></div>
+  </section>
+
+  <section class="card">
+    <h2>حالة المهمّة</h2>
+    <div class="kv">
+      <span>المرحلة</span><span id="phase">—</span>
+      <span>توقّع القمرين</span><span id="pred">—</span>
+      <span>قطر النار</span><span id="dia">—</span>
+      <span>الكرات</span><span id="balls">—</span>
+      <span>أشخاص / حيوانات</span><span id="life">—</span>
+      <span>آخر رسالة</span><span id="msg">—</span>
+    </div>
+    <h2 style="margin-top:16px">سجل البلاغات</h2>
+    <ul id="log"></ul>
+  </section>
+
+  <section class="card report" id="report" style="grid-column: 1 / -1">
+    <h2 id="repTitle">تقرير المهمّة</h2>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px" class="repgrid">
+      <div><img id="repImg" alt="صورة الحريق من كاميرا الدرون"></div>
+      <div>
+        <div class="kv">
+          <span>النتيجة</span><span id="rRes">—</span>
+          <span>نسبة الضرر</span><span id="rDmg">—</span>
+          <span>توقّع القمر</span><span id="rPred">—</span>
+          <span>الموقع</span><span id="rLoc">—</span>
+          <span>أشخاص / حيوانات</span><span id="rLife">—</span>
+          <span>الكرات المستعملة</span><span id="rBalls">—</span>
+        </div>
+        <div class="cause"><b>السبب المتوقّع (تقدير آلي):</b><br><span id="rCause">—</span></div>
+        <div class="chan" id="chan"></div>
+      </div>
+    </div>
+  </section>
+
+  <details class="card">
+    <summary>إعداد قنوات التنبيه (تيليغرام)</summary>
+    <p class="hint">التنبيهات تُرسل فعلياً عبر بوت تيليغرام: أنشئ بوتاً من @BotFather وضع رمزه هنا،
+      ثم ضع رقم المحادثة (chat id) لكل جهة. القيم تُحفظ في هذا المتصفّح فقط.
+      بدون إعداد، تبقى التنبيهات داخل الصفحة وإشعارات المتصفّح.</p>
+    <label for="tok">رمز البوت (Bot token)</label>
+    <input id="tok" placeholder="123456:ABC...">
+    <label for="cd">محادثة الدفاع المدني (chat id)</label>
+    <input id="cd" placeholder="-1001234567890">
+    <label for="pub">محادثة تنبيه السكان والمتنزّهين (chat id)</label>
+    <input id="pub" placeholder="-1009876543210">
+    <button id="save">حفظ</button>
+    <button id="test">إرسال رسالة تجريبية</button>
+    <button id="notif">تفعيل إشعارات المتصفّح</button>
+    <p class="hint" id="setMsg"></p>
+  </details>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem('jamra_' + k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem('jamra_' + k, v); } catch (e) {} }
+};
+['tok', 'cd', 'pub'].forEach(k => $(k).value = store.get(k));
+$('save').onclick = () => { ['tok', 'cd', 'pub'].forEach(k => store.set(k, $(k).value.trim())); $('setMsg').textContent = 'حُفظ.'; };
+$('notif').onclick = () => { if ('Notification' in window) Notification.requestPermission(); };
+$('test').onclick = async () => {
+  const ok = await tgText(store.get('cd'), 'جمرة: رسالة تجريبية من مركز البلاغات.');
+  $('setMsg').textContent = ok ? 'وصلت الرسالة التجريبية.' : 'تعذّر الإرسال — تحقّق من الرمز ورقم المحادثة.';
+};
+
+// ── تيليغرام: طلبات «بسيطة» بلا preflight ─────────────────────
+async function tgText(chat, text) {
+  const tok = store.get('tok');
+  if (!tok || !chat) return false;
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
+      method: 'POST', body: new URLSearchParams({ chat_id: chat, text }) });
+    return r.ok;
+  } catch (e) { return false; }
+}
+async function tgPhoto(chat, caption) {
+  const tok = store.get('tok');
+  if (!tok || !chat) return false;
+  try {
+    const img = await fetch('/fire.png?' + Date.now()).then(r => r.ok ? r.blob() : null);
+    if (!img) return tgText(chat, caption);
+    const fd = new FormData();
+    fd.append('chat_id', chat); fd.append('caption', caption); fd.append('photo', img, 'fire.png');
+    const r = await fetch(`https://api.telegram.org/bot${tok}/sendPhoto`, { method: 'POST', body: fd });
+    return r.ok;
+  } catch (e) { return false; }
+}
+function notify(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body });
+  try {
+    const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(.2, ctx.currentTime); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .8);
+    o.start(); o.stop(ctx.currentTime + .8);
+  } catch (e) {}
+}
+function chip(text, ok) {
+  const c = document.createElement('span');
+  c.className = 'chip ' + (ok === true ? 'sent' : ok === false ? 'fail' : '');
+  c.textContent = text;
+  $('chan').appendChild(c);
+}
+const ll = (a, b) => `${a.toFixed(4)}°N  ${b.toFixed(4)}°E`;
+
+// ── الخريطة ──────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([32.428, 35.726], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(map);
+const predCircle = L.circle([0, 0], { radius: 1, color: '#ffa940', weight: 2, fillOpacity: .08 });
+const droneMk = L.circleMarker([0, 0], { radius: 7, color: '#5ce6ff', fillColor: '#5ce6ff', fillOpacity: 1 });
+const fireMk = L.circleMarker([0, 0], { radius: 9, color: '#ff4a3d', fillColor: '#ff4a3d', fillOpacity: .9 });
+
+// ── حلقة التحديث ─────────────────────────────────────────────
+let last = null, sent = {}, lastSerial = -1, centred = false;
+const phaseName = { Briefing: 'بانتظار البلاغ', Searching: 'بحث', Detected: 'الحريق مكشوف', Resolved: 'انتهت المهمّة' };
+
+async function tick() {
+  let s;
+  try { s = await fetch('/live.json', { cache: 'no-store' }).then(r => r.json()); }
+  catch (e) { $('dot').classList.remove('on'); $('connText').textContent = 'المحاكاة متوقّفة'; return; }
+  $('dot').classList.add('on'); $('connText').textContent = 'متّصل بالمحاكاة';
+  if (!s.phase) return;
+
+  // مهمّة جديدة: تصفير التنبيهات المرسلة
+  if (last && (s.missionTime < last.missionTime - 1 || (last.phase === 'Resolved' && s.phase !== 'Resolved'))) {
+    sent = {}; $('chan').innerHTML = ''; $('report').classList.remove('show'); $('personAlert').classList.remove('show'); centred = false;
+  }
+
+  // الخطوات
+  const stepNow = s.phase === 'Briefing' ? -1 : s.phase === 'Searching' ? 1
+    : s.phase === 'Detected' ? (s.ballsLeft < s.balls ? 4 : 3) : 5;
+  document.querySelectorAll('.step').forEach(el => {
+    const i = +el.dataset.s;
+    el.className = 'step' + (i < stepNow ? ' done' : i === stepNow ? ' now' : '');
+  });
+
+  // الخريطة
+  if (s.predLat) {
+    predCircle.setLatLng([s.predLat, s.predLon]).setRadius(s.predRadiusM).addTo(map);
+    if (!centred) { map.fitBounds(predCircle.getBounds()); centred = true; }
+  }
+  if (s.droneLat) droneMk.setLatLng([s.droneLat, s.droneLon]).addTo(map);
+  if (s.fireLat) fireMk.setLatLng([s.fireLat, s.fireLon]).addTo(map); else fireMk.remove();
+
+  // الحالة
+  $('phase').textContent = phaseName[s.phase] || s.phase;
+  $('pred').textContent = s.predLat ? ll(s.predLat, s.predLon) + ` · نصف قطر ${Math.round(s.predRadiusM)} م` : '—';
+  $('dia').textContent = s.burning ? s.fireDia.toFixed(1) + ' م' : 'لم تشتعل بعد';
+  $('balls').textContent = `${s.ballsLeft} من ${s.balls}`;
+  $('life').textContent = `${s.persons} / ${s.animals}`;
+  $('msg').textContent = s.message || '—';
+  const logEl = $('log');
+  logEl.innerHTML = '';
+  (s.log || []).slice().reverse().forEach(t => {
+    const li = document.createElement('li');
+    li.textContent = t;
+    if (t.includes('تحذير')) li.className = 'warn';
+    logEl.appendChild(li);
+  });
+
+  // تنبيه 1: بلاغ القمرين
+  if (s.phase !== 'Briefing' && s.predLat && !sent.sat) {
+    sent.sat = true;
+    notify('جمرة: بلاغ حريق محتمل', 'القمران رصدا احتمال حريق في برقش — الدرون في الطريق');
+  }
+  // تنبيه 2: شخص قرب النار — عاجل للدفاع المدني وتحذير للسكان
+  if (s.persons > 0 && !sent.person) {
+    sent.person = true;
+    const t = `تحذير عاجل: رُصد ${s.persons} شخص قرب حريق في غابة برقش. الموقع: ${ll(s.fireLat || s.predLat, s.fireLon || s.predLon)}`;
+    $('personAlert').textContent = t;
+    $('personAlert').classList.add('show');
+    notify('جمرة: شخص قرب الحريق', t);
+    tgText(store.get('cd'), t).then(ok => chip('الدفاع المدني: تحذير شخص', ok));
+    tgText(store.get('pub'), 'تحذير للسكان والمتنزّهين: حريق في غابة برقش — ابتعدوا عن المنطقة واتّبعوا تعليمات الدفاع المدني.')
+      .then(ok => chip('تحذير السكان', ok));
+  }
+  // تنبيه 3: التقرير النهائي مع الصورة
+  if (s.phase === 'Resolved' && s.reportSerial !== lastSerial) {
+    lastSerial = s.reportSerial;
+    showReport(s);
+    const cap = (s.success ? 'تم إخماد الحريق' : 'تعذّر الإخماد — مطلوب إسناد') +
+      `\nالموقع: ${ll(s.fireLat || s.predLat, s.fireLon || s.predLon)}` +
+      `\nنسبة الضرر: ${s.damagePct.toFixed(4)}٪ · القطر ${s.fireDia.toFixed(1)} م` +
+      `\nتوقّع القمر: ${s.predOk ? 'صحيح' : 'غير دقيق'} (الخطأ ${Math.round(s.predErrM)} م)` +
+      `\nأشخاص: ${s.persons} · حيوانات: ${s.animals}` +
+      `\nالسبب المتوقّع: ${s.cause}`;
+    notify('جمرة: ' + (s.success ? 'تم إخماد الحريق' : 'مطلوب إسناد'), cap);
+    tgPhoto(store.get('cd'), cap).then(ok => chip('الدفاع المدني: التقرير والصورة', ok));
+  }
+  last = s;
+}
+
+function showReport(s) {
+  $('report').classList.add('show');
+  $('repTitle').textContent = s.success ? 'تقرير المهمّة — أُخمد الحريق' : 'تقرير المهمّة — تعذّر الإخماد';
+  $('repImg').src = s.hasImage ? '/fire.png?' + Date.now() : '';
+  $('rRes').innerHTML = s.success ? '<span class="ok">أُخمد</span>' : '<span class="err">مطلوب إسناد</span>';
+  $('rDmg').textContent = s.damagePct.toFixed(4) + '٪ من منطقة البلاغ';
+  $('rPred').innerHTML = s.predOk
+    ? `<span class="ok">صحيح</span> — الخطأ ${Math.round(s.predErrM)} م`
+    : `<span class="bad">غير دقيق</span> — الخطأ ${Math.round(s.predErrM)} م`;
+  $('rLoc').textContent = ll(s.fireLat || s.predLat, s.fireLon || s.predLon);
+  $('rLife').textContent = `${s.persons} / ${s.animals}`;
+  $('rBalls').textContent = `${s.balls - s.ballsLeft} من ${s.balls}`;
+  $('rCause').textContent = s.cause || '—';
+}
+
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<!--
+  جَمرة — ما لا يجوز أن يحذفه تقليم الكود في بناء WebGL.
+  GameObject.CreatePrimitive يضيف Collider وقت التشغيل، ولا مرجع له في المشهد،
+  فيُحذف صنفه ويظهر "Can't add component because class 'CapsuleCollider' doesn't exist".
+-->
+<linker>
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.BoxCollider" preserve="all"/>
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all"/>
+    <type fullname="UnityEngine.SphereCollider" preserve="all"/>
+    <type fullname="UnityEngine.MeshCollider" preserve="all"/>
+  </assembly>
+</linker>

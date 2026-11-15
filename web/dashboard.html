@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جمرة — مركز البلاغات</title>
+<script src="jamra-shim.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root { --bg:#071016; --panel:#0d1b24; --line:#1d3442; --fg:#e3f1f7; --dim:#86a3b2;
+          --cyan:#5ce6ff; --amber:#ffa940; --red:#ff4a3d; --green:#5ff28c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.6 Tahoma, Arial, sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+           padding:12px 20px; border-bottom:1px solid var(--line); background:#08151d; }
+  header h1 { margin:0; font-size:19px; color:var(--cyan); }
+  header h1 small { color:var(--dim); font-weight:400; font-size:13px; }
+  header a { color:var(--cyan); }
+  .conn { font-size:13px; color:var(--dim); display:flex; align-items:center; gap:8px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--red); }
+  .dot.on { background:var(--green); box-shadow:0 0 8px var(--green); }
+  main { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:14px; padding:14px 20px 30px; }
+  @media (max-width:1000px) { main { grid-template-columns:1fr; } }
+  .full { grid-column:1 / -1; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
+  .card h2 { margin:0 0 10px; font-size:15px; color:var(--cyan); }
+  .steps { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  @media (max-width:1000px) { .steps { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  .step { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:var(--dim); font-size:13px; }
+  .step b { display:block; font-size:11px; opacity:.7; }
+  .step.done { border-color:#2a5a4a; color:var(--green); }
+  .step.now { border-color:var(--amber); color:var(--amber); box-shadow:0 0 12px rgba(255,169,64,.25); }
+  #map { height:470px; border-radius:8px; }
+  .alert { display:none; background:#3a0d0a; border:2px solid var(--red); color:#ffd9d4; border-radius:10px;
+           padding:12px 16px; font-size:15px; font-weight:600; animation:pulse 1.2s infinite; }
+  .alert.show { display:flex; gap:14px; align-items:center; }
+  .alert img { width:150px; border-radius:6px; }
+  @keyframes pulse { 50% { box-shadow:0 0 22px rgba(255,74,61,.55); } }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:right; vertical-align:top; }
+  th { color:var(--dim); font-weight:400; }
+  td.win { color:var(--green); font-weight:700; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; }
+  .kv span:nth-child(odd) { color:var(--dim); }
+  .ok { color:var(--green); } .bad { color:var(--amber); } .err { color:var(--red); }
+  #log { list-style:none; margin:0; padding:0; max-height:240px; overflow-y:auto; font-size:12.5px; }
+  #log li { padding:5px 0; border-bottom:1px dashed var(--line); }
+  #log li.warn { color:#ffb3ab; }
+  .sights { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:10px; }
+  .sight { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#0a1820; }
+  .sight .ph { position:relative; aspect-ratio:16/9; background:#000; }
+  .sight img { width:100%; height:100%; object-fit:cover; display:block; }
+  .sight .box { position:absolute; border:2px solid var(--cyan); }
+  .sight .t { padding:8px 10px; font-size:13px; }
+  .sight .t small { display:block; color:var(--dim); }
+  .tag { font-size:11px; padding:1px 8px; border-radius:10px; border:1px solid var(--line); }
+  .tag.model { border-color:var(--green); color:var(--green); }
+  .tag.sim { border-color:var(--amber); color:var(--amber); }
+  .report img { width:100%; border-radius:8px; border:1px solid var(--line); background:#000; aspect-ratio:16/9; object-fit:cover; }
+  .cause { margin-top:10px; padding:10px; border-right:3px solid var(--amber); background:#10222c; border-radius:6px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .chip { font-size:12px; padding:3px 10px; border-radius:20px; border:1px solid var(--line); color:var(--dim); }
+  .chip.sent { border-color:var(--green); color:var(--green); }
+  .chip.fail { border-color:var(--red); color:var(--red); }
+  iframe { width:100%; height:520px; border:0; border-radius:8px; background:#000; }
+  label { display:block; margin:8px 0 3px; color:var(--dim); font-size:13px; }
+  input { width:100%; padding:7px 10px; background:#08151d; color:var(--fg); border:1px solid var(--line);
+          border-radius:6px; font:inherit; direction:ltr; text-align:left; }
+  button { margin-top:10px; padding:7px 14px; background:#123a4a; color:var(--fg); border:1px solid var(--cyan);
+           border-radius:6px; cursor:pointer; font:inherit; }
+  .hint { color:var(--dim); font-size:12px; line-height:1.8; }
+  .leaflet-container { background:#0b1a22; font:inherit; }
+  .sim { border-color:#5a4a1d; background:#1a1608; color:#f1e3b8; line-height:1.9; }
+  .sim a { color:var(--amber); }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  @media (max-width:700px) { .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>جمرة <small>· مركز البلاغات · غابة برقش</small></h1>
+  <a href="detect.html" target="_blank">كاميرا المودل ↗</a>
+  <div class="conn"><span class="dot" id="dot"></span><span id="connText">بانتظار المحاكاة…</span></div>
+</header>
+
+<main>
+  <div class="card full sim">
+    <b>هذه محاكاة.</b> المهمّة تجري في نموذج رقمي لغابة برقش (تضاريس SRTM، صورة Sentinel-2، غطاء ESA WorldCover، مبانٍ من OpenStreetMap).
+    توقّعات القمرين <b>NOAA-20 (مستشعر VIIRS)</b> و<b>Sentinel-2 (مستشعر MSI)</b> مولَّدة على نمط بياناتهما الحقيقية، وكذلك قراءات حساسات الغاز
+    وحكم المودل داخل المحاكاة. المودل الحقيقي يعمل على كاميرا حقيقية في <a href="detect.html" target="_blank">صفحة الكشف</a>.
+  </div>
+  <div class="steps full" id="steps">
+    <div class="step" data-s="0"><b>1</b>توقّع القمرين</div>
+    <div class="step" data-s="1"><b>2</b>الدرون في الطريق</div>
+    <div class="step" data-s="2"><b>3</b>كشف النار</div>
+    <div class="step" data-s="3"><b>4</b>فحص أشخاص وحيوانات</div>
+    <div class="step" data-s="4"><b>5</b>الإخماد</div>
+    <div class="step" data-s="5"><b>6</b>تنبيه البيوت القريبة</div>
+    <div class="step" data-s="6"><b>7</b>تقرير الدفاع المدني</div>
+  </div>
+
+  <div class="alert full" id="personAlert"><img id="personImg" alt=""><div id="personText"></div></div>
+
+  <section class="card full">
+    <h2>توقّعات القمرين (محاكاة لـ NOAA-20 و Sentinel-2)</h2>
+    <table id="sats">
+      <thead><tr><th></th><th>المستشعر</th><th>الموقع المتوقّع</th><th>وقت الاشتعال</th><th>الحرارة</th><th>السبب المتوقّع</th><th>نقاط</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint">النقاط بعد انتهاء المهمّة: 25 لكلٍّ من قرب الموقع، دقّة الوقت، صحّة السبب، دقّة الحرارة. الحقيقة تُكشف في سطر «على الأرض».</p>
+  </section>
+
+  <section class="card">
+    <h2>الخريطة (صور فضائية) — التوقّع، الدرون، الحريق، البيوت</h2>
+    <div id="map"></div>
+    <p class="hint" id="houseInfo">البيوت تُجلب من OpenStreetMap حول الحريق بعد كشفه.</p>
+  </section>
+
+  <section class="card">
+    <h2>حالة المهمّة</h2>
+    <div class="kv">
+      <span>المرحلة</span><span id="phase">—</span>
+      <span>قطر النار</span><span id="dia">—</span>
+      <span>الكرات</span><span id="balls">—</span>
+      <span>آخر رسالة</span><span id="msg">—</span>
+    </div>
+    <h2 style="margin-top:14px">سجل البلاغات</h2>
+    <ul id="log"></ul>
+  </section>
+
+  <section class="card full">
+    <h2>حساسات الغاز على الدرون وسبب الحريق</h2>
+    <div class="two">
+      <table id="gas">
+        <thead><tr><th>الغاز</th><th>الحساس</th><th>القراءة</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div>
+        <div class="kv">
+          <span>كفاءة الاحتراق MCE</span><span id="gMCE">—</span>
+          <span>السبب من بصمة الغاز</span><span id="gCause">يجمع عيّنات الدخان…</span>
+        </div>
+        <div class="cause" id="gWhy">—</div>
+        <p class="hint">MCE = ΔCO₂ ÷ (ΔCO₂ + ΔCO): لهب مفتوح ≈ 0.95 فأكثر، احتراق خامد ≈ 0.80–0.87.
+          VOC مرتفع جداً ← وقود سائل (حرق متعمَّد). NO₂ وO₃ مرتفعان ← قوس كهربائي من خط كهرباء.
+          احتراق خامد ← عقب سيجارة. جسيمات كثيفة جداً ← مخلّفات زراعية. غير ذلك ← فحم شواء أو نار تخييم.
+          قواعد مبسّطة من كيمياء الاحتراق؛ القراءات هنا محاكاة لحساسات حقيقية.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card full">
+    <h2>ما رصده الدرون قرب النار</h2>
+    <div class="sights" id="sights"><p class="hint">لم يبدأ الفحص بعد.</p></div>
+  </section>
+
+  <section class="card full report" id="report" hidden>
+    <h2 id="repTitle">تقرير المهمّة</h2>
+    <div class="two">
+      <div><img id="repImg" alt="صورة الحريق من كاميرا الدرون"></div>
+      <div>
+        <div class="kv">
+          <span>النتيجة</span><span id="rRes">—</span>
+          <span>المساحة المحترقة</span><span id="rArea">—</span>
+          <span>نسبة الضرر</span><span id="rDmg">—</span>
+          <span>لو لم يُخمَد (ساعة)</span><span id="rUnchecked">—</span>
+          <span>حرارة البؤرة / الهواء</span><span id="rTemp">—</span>
+          <span>الموقع</span><span id="rLoc">—</span>
+          <span>البيوت المهدَّدة</span><span id="rHouses">—</span>
+          <span>الكرات المستعملة</span><span id="rBalls">—</span>
+        </div>
+        <div class="cause"><b>السبب المتوقّع:</b> <span id="rCause">—</span><br>
+          <b>السبب الفعلي في المحاكاة:</b> <span id="rTrue">—</span></div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>تجربة المودل الحقيقي</h2>
+    <p class="hint">المودل الحقيقي (النار والدخان + الأشخاص + كاشف اليد) يعمل على كاميرا جهازك في صفحة مستقلّة.
+      جرّبه على شمعة، وضع يدك أمام الكاميرا: الإطار يصير أحمر ويصل تنبيه إلى بريدك.
+      داخل المحاكاة، الدرون يستعمل محاكاة لمخرجات المودل نفسه.</p>
+    <a href="detect.html" target="_blank"><button>افتح كاميرا المودل ↗</button></a>
+  </section>
+
+  <section class="card">
+    <h2>البريد الحقيقي</h2>
+    <p class="hint">الرسائل الحقيقية تُرسل إلى بريدك أنت فقط. تنبيه البيوت يظهر على الخريطة محاكاةً، ولا يُراسَل أحد غيرك.
+      الإرسال عبر Gmail: فعّل التحقّق بخطوتين ثم أنشئ «كلمة مرور تطبيق» من حساب Google، وضعها هنا بنفسك.
+      القيم تُحفظ في هذا المتصفّح فقط وتمرّ إلى المحاكاة على جهازك.</p>
+    <label for="mUser">بريد الإرسال (Gmail)</label><input id="mUser" placeholder="name@gmail.com">
+    <label for="mPass">كلمة مرور التطبيق</label><input id="mPass" type="password">
+    <label for="mTo">بريد الاستلام</label><input id="mTo" placeholder="name@gmail.com">
+    <button id="mSave">حفظ</button> <button id="mTest">إرسال رسالة تجريبية</button>
+    <p class="hint" id="mMsg"></p>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem('jamra_' + k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem('jamra_' + k, v); } catch (e) {} }
+};
+// نسخة الويب (JAMRA_WEB من jamra-shim.js): الإرسال من بريد الفريق، فقط بريد الاستلام يُسأل
+const WEB = window.JAMRA_WEB;
+if (WEB) {
+  ['mUser', 'mPass'].forEach(k => { $(k).hidden = true; document.querySelector(`label[for=${k}]`).hidden = true; });
+  $('mUser').closest('section').querySelector('p.hint').textContent =
+    'الرسائل تُرسل من بريد فريق جمرة (' + WEB.sender + ') إلى البريد الذي تكتبه هنا فقط. تنبيه البيوت يظهر على الخريطة محاكاةً، ولا يُراسَل أحد غيرك.';
+}
+['mUser', 'mPass', 'mTo'].forEach(k => $(k).value = store.get(k));
+$('mSave').onclick = () => { ['mUser', 'mPass', 'mTo'].forEach(k => store.set(k, $(k).value.trim())); $('mMsg').textContent = 'حُفظ.'; };
+$('mTest').onclick = async () => {
+  $('mMsg').textContent = 'جارٍ الإرسال…';
+  const r = await email('جمرة: رسالة تجريبية', 'هذه رسالة تجريبية من مركز بلاغات جمرة.', false, []);
+  $('mMsg').textContent = r.ok ? 'وصلت الرسالة إلى ' + store.get('mTo') : 'تعذّر الإرسال: ' + (r.error || 'تحقّق من الإعداد');
+};
+
+async function email(subject, body, attachFire, sightings) {
+  const user = store.get('mUser'), pass = store.get('mPass'), to = store.get('mTo') || (WEB ? '' : user);
+  if (WEB ? !to : (!user || !pass)) return { ok: false, error: 'البريد غير مُعدّ' };
+  try {
+    const r = await fetch('/email', { method: 'POST', body: JSON.stringify(
+      { host: 'smtp.gmail.com', port: 587, user, pass, to, subject, body, attachFire, sightings }) });
+    return await r.json();
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function chip(text, r) {
+  const c = document.createElement('span');
+  c.className = 'chip ' + (r && r.ok ? 'sent' : 'fail');
+  c.textContent = text + (r && r.ok ? ' ✓' : r && r.error === 'البريد غير مُعدّ' ? ' (البريد غير مُعدّ)' : ' ✗');
+  $('chips').appendChild(c);
+}
+function beep() {
+  try {
+    const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(.2, ctx.currentTime); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .8);
+    o.start(); o.stop(ctx.currentTime + .8);
+  } catch (e) {}
+}
+const ll = (a, b) => `${a.toFixed(4)}°N ${b.toFixed(4)}°E`;
+const AR = { person:'شخص', bird:'طائر', cat:'قطة', dog:'كلب', horse:'حصان', sheep:'خروف', cow:'بقرة', bear:'دب', animal:'حيوان' };
+
+// ── الخريطة ──────────────────────────────────────────────────
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 19, attribution: 'صور: Esri, Maxar, Earthstar Geographics' });
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
+const map = L.map('map', { layers: [sat] }).setView([32.428, 35.726], 14);
+L.control.layers({ 'صور فضائية': sat, 'خريطة': osm }).addTo(map);
+const predCircle = L.circle([0, 0], { radius: 1, color: '#ffa940', weight: 2, fillOpacity: .06 });
+const satA = L.circleMarker([0, 0], { radius: 7, color: '#ffd166', fillOpacity: .9 });
+const satB = L.circleMarker([0, 0], { radius: 7, color: '#c77dff', fillOpacity: .9 });
+const droneMk = L.circleMarker([0, 0], { radius: 6, color: '#5ce6ff', fillColor: '#5ce6ff', fillOpacity: 1 });
+const fireMk = L.circleMarker([0, 0], { radius: 8, color: '#ff4a3d', fillColor: '#ff4a3d', fillOpacity: .9 });
+const burn = L.circle([0, 0], { radius: 1, color: '#1a1a1a', fillColor: '#2b1a12', fillOpacity: .85, weight: 2 });
+const spread = L.circle([0, 0], { radius: 1, color: '#ff4a3d', dashArray: '6 6', weight: 2, fillOpacity: .08 });
+const houseLayer = L.layerGroup().addTo(map);
+const sightLayer = L.layerGroup().addTo(map);
+
+// ── البيوت الحقيقية من OpenStreetMap ─────────────────────────
+let houses = null, housesFor = null, housesPromise = null;
+function loadHouses(lat, lon, windTo) {
+  housesFor = `${lat},${lon}`;
+  housesPromise = fetchHouses(lat, lon, windTo);
+  return housesPromise;
+}
+async function fetchHouses(lat, lon, windTo) {
+  $('houseInfo').textContent = 'جلب البيوت من OpenStreetMap… (قد يأخذ نصف دقيقة)';
+  // ذاكرة محلية: المباني لا تتغيّر بين المهمّات، فنخزّنها لكل منطقة (تقريب 0.01°)
+  const key = 'jamra_bld_' + lat.toFixed(2) + '_' + lon.toFixed(2);
+  const q = `[out:json][timeout:40];(way["building"](around:3000,${lat.toFixed(2)},${lon.toFixed(2)});node["building"](around:3000,${lat.toFixed(2)},${lon.toFixed(2)}););out center 1500;`;
+  try {
+    let els = null;
+    try { els = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+    if (!els) {
+      const r = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) });
+      els = (await r.json()).elements.map(e => ({ lat: e.lat ?? e.center.lat, lon: e.lon ?? e.center.lon }));
+      try { localStorage.setItem(key, JSON.stringify(els)); } catch (e) {}
+    }
+    houses = els.filter(e => dist(lat, lon, e.lat, e.lon) <= 2000).map(e => {
+      const la = e.lat, lo = e.lon;
+      const d = dist(lat, lon, la, lo), brg = bearing(lat, lon, la, lo);
+      const off = Math.abs(((brg - windTo + 540) % 360) - 180);
+      // مهدَّد: قريب جداً، أو في اتّجاه الريح ضمن 1.5 كم
+      const risk = d <= 600 || (d <= 1500 && off <= 50);
+      return { la, lo, d, risk };
+    });
+    houseLayer.clearLayers();
+    for (const h of houses)
+      L.circleMarker([h.la, h.lo], { radius: h.risk ? 4 : 2.5, weight: 1,
+        color: h.risk ? '#ff4a3d' : '#9fb6c2', fillOpacity: .9 })
+        .bindTooltip(`${Math.round(h.d)} م من الحريق${h.risk ? ' — مهدَّد · وصله تنبيه (محاكاة)' : ''}`).addTo(houseLayer);
+    const n = houses.filter(h => h.risk).length;
+    $('houseInfo').textContent = `${houses.length} مبنى ضمن 2 كم (OpenStreetMap) · ${n} مهدَّد (قريب أو باتّجاه الريح) — أُرسل لها تنبيه محاكاة.`;
+  } catch (e) {
+    $('houseInfo').textContent = 'تعذّر جلب البيوت من OpenStreetMap: ' + e.message;
+  }
+}
+function dist(a1, o1, a2, o2) {
+  const R = 6371000, r = Math.PI / 180, da = (a2 - a1) * r, dob = (o2 - o1) * r;
+  const s = Math.sin(da/2)**2 + Math.cos(a1*r) * Math.cos(a2*r) * Math.sin(dob/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function bearing(a1, o1, a2, o2) {
+  const r = Math.PI / 180, y = Math.sin((o2-o1)*r) * Math.cos(a2*r);
+  const x = Math.cos(a1*r) * Math.sin(a2*r) - Math.sin(a1*r) * Math.cos(a2*r) * Math.cos((o2-o1)*r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+const atRisk = () => houses ? houses.filter(h => h.risk).length : 0;
+
+// ── حلقة التحديث ─────────────────────────────────────────────
+let last = null, sent = {}, lastSerial = -1, centred = false;
+const phaseName = { Briefing:'بانتظار البلاغ', Searching:'بحث', Detected:'الحريق مكشوف', Resolved:'انتهت المهمّة' };
+
+async function tick() {
+  let s;
+  try { s = await fetch('/live.json', { cache: 'no-store' }).then(r => r.json()); }
+  catch (e) { $('dot').classList.remove('on'); $('connText').textContent = 'المحاكاة متوقّفة'; return; }
+  $('dot').classList.add('on'); $('connText').textContent = 'متّصل بالمحاكاة';
+  if (!s.phase) return;
+
+  if (last && (s.missionTime < last.missionTime - 1 || (last.phase === 'Resolved' && s.phase !== 'Resolved'))) {
+    sent = {}; $('chips').innerHTML = ''; $('report').hidden = true; $('personAlert').classList.remove('show');
+    centred = false; houses = null; housesFor = null; houseLayer.clearLayers(); burn.remove(); spread.remove();
+  }
+
+  const step = s.phase === 'Briefing' ? -1 : s.phase === 'Searching' ? 1
+    : s.phase === 'Detected' ? (!s.surveyDone ? 3 : 4) : 6;
+  document.querySelectorAll('.step').forEach(el => {
+    const i = +el.dataset.s;
+    el.className = 'step' + (i < step ? ' done' : i === step ? ' now' : '');
+  });
+
+  // القمران
+  satsTable(s);
+  if (s.satA && s.satA.lat) {
+    satA.setLatLng([s.satA.lat, s.satA.lon]).bindTooltip('القمر 1: ' + s.satA.sensor).addTo(map);
+    satB.setLatLng([s.satB.lat, s.satB.lon]).bindTooltip('القمر 2: ' + s.satB.sensor).addTo(map);
+  }
+  if (s.predLat) {
+    predCircle.setLatLng([s.predLat, s.predLon]).setRadius(s.predRadiusM).addTo(map);
+    if (!centred) { map.fitBounds(predCircle.getBounds()); centred = true; }
+  }
+  if (s.droneLat) droneMk.setLatLng([s.droneLat, s.droneLon]).addTo(map);
+  if (s.fireLat) {
+    fireMk.setLatLng([s.fireLat, s.fireLon]).addTo(map);
+    if (housesFor === null) loadHouses(s.fireLat, s.fireLon, s.windToDeg);
+  } else fireMk.remove();
+
+  // الحالة والسجل
+  $('phase').textContent = phaseName[s.phase] || s.phase;
+  $('dia').textContent = s.burning ? s.fireDia.toFixed(1) + ' م' : 'لم تشتعل بعد';
+  $('balls').textContent = `${s.ballsLeft} من ${s.balls}`;
+  $('msg').textContent = s.message || '—';
+  const logEl = $('log'); logEl.innerHTML = '';
+  (s.log || []).slice().reverse().forEach(t => {
+    const li = document.createElement('li'); li.textContent = t;
+    if (t.includes('تحذير')) li.className = 'warn';
+    logEl.appendChild(li);
+  });
+  sightsView(s);
+  gasView(s);
+
+  // تنبيه: شخص قرب النار
+  const person = (s.sightings || []).find(x => x.person);
+  if (person && !sent.person) {
+    sent.person = true;
+    const t = `تحذير عاجل: شخص على بُعد ${Math.round(person.distM)} م من حريق في غابة برقش (${ll(person.lat, person.lon)}). ` +
+      `تعرّف عليه المودل بثقة ${Math.round(person.conf * 100)}٪.`;
+    $('personText').textContent = t;
+    $('personImg').src = `/sighting/${person.index}.jpg?${Date.now()}`;
+    $('personAlert').classList.add('show');
+    beep();
+    email('جمرة — تحذير عاجل: شخص قرب حريق', t + '\nأُبلغ الدفاع المدني. الصورة مرفقة.', false, [person.index])
+      .then(r => { sent.personMail = r; });
+  }
+
+  if (s.fireLat) {
+    burn.setLatLng([s.fireLat, s.fireLon]).setRadius(Math.max(0.5, s.fireDia / 2)).addTo(map);
+  }
+
+  // التقرير النهائي
+  if (s.phase === 'Resolved' && s.reportSerial !== lastSerial) {
+    lastSerial = s.reportSerial;
+    // التقرير ينتظر البيوت (حتى 45 ث) كي يذكر عددها الحقيقي
+    if (housesPromise) await Promise.race([housesPromise, new Promise(r => setTimeout(r, 45000))]);
+    showReport(s);
+    const lines = [
+      s.success ? 'تم إخماد الحريق.' : 'تعذّر الإخماد — مطلوب إسناد.',
+      `الموقع: ${ll(s.fireLat || s.predLat, s.fireLon || s.predLon)}`,
+      `المساحة المحترقة: ${s.burnAreaM2.toFixed(1)} م² (${s.damagePct.toFixed(5)}٪ من غابات برقش)`,
+      `لو لم يُخمَد خلال ساعة: قطر ${Math.round(s.uncheckedDia60)} م (${s.uncheckedPct60.toFixed(3)}٪)`,
+      `حرارة البؤرة ${Math.round(s.fireC)}°م · الهواء ${Math.round(s.airC)}°م`,
+      `أشخاص: ${s.persons} · حيوانات: ${s.animals} · بيوت مهدَّدة: ${atRisk()}`,
+      `القمر 1: ${s.satA.total}/100 · القمر 2: ${s.satB.total}/100`,
+      `السبب المتوقّع: ${s.cause}`
+    ].join('\n');
+    if (sent.personMail) chip('بريد: تحذير شخص', sent.personMail);
+    const sightIdx = (s.sightings || []).filter(x => x.hasPhoto).map(x => x.index);
+    email('جمرة — تقرير الحريق للدفاع المدني', lines, true, sightIdx).then(r => chip('بريد: التقرير والصور', r));
+    const c = document.createElement('span'); c.className = 'chip sent';
+    c.textContent = `تنبيه ${atRisk()} بيت مهدَّد (محاكاة)`; $('chips').appendChild(c);
+  }
+  last = s;
+}
+
+function satsTable(s) {
+  const tb = document.querySelector('#sats tbody'); tb.innerHTML = '';
+  if (!s.satA || !s.satA.name) return;
+  const done = s.phase === 'Resolved';
+  const best = done ? (s.satA.total >= s.satB.total ? 'A' : 'B') : '';
+  for (const [k, p] of [['A', s.satA], ['B', s.satB]]) {
+    const tr = document.createElement('tr');
+    const cells = [p.name, p.sensor, ll(p.lat, p.lon) + (done ? ` (خطأ ${Math.round(p.errM)} م · ${p.scoreLoc})` : ''),
+      p.igniteClock + (done ? ` (${p.scoreTime})` : ''), Math.round(p.tempC) + '°م' + (done ? ` (${p.scoreTemp})` : ''),
+      p.cause + (done ? ` (${p.scoreCause})` : ''), done ? p.total + '/100' : '—'];
+    cells.forEach((v, i) => { const td = document.createElement('td'); td.textContent = v;
+      if (i === 6 && best === k) td.className = 'win'; tr.appendChild(td); });
+    tb.appendChild(tr);
+  }
+  if (done) {
+    const tr = document.createElement('tr');
+    ['على الأرض', 'قياس الدرون', ll(s.fireLat, s.fireLon), s.igniteClock, Math.round(s.fireC) + '°م', s.trueCause,
+     'الأقرب: ' + (best === 'A' ? s.satA.name : s.satB.name)].forEach(v => {
+      const td = document.createElement('td'); td.textContent = v; td.style.color = '#5ff28c'; tr.appendChild(td); });
+    tb.appendChild(tr);
+  }
+}
+
+let sightKey = '';
+function sightsView(s) {
+  const list = s.sightings || [];
+  const key = list.map(x => x.index + x.label).join('|');
+  if (key === sightKey) return;
+  sightKey = key;
+  const el = $('sights'); el.innerHTML = '';
+  sightLayer.clearLayers();
+  if (!list.length) { el.innerHTML = '<p class="hint">' + (s.surveyDone ? 'لا أشخاص ولا حيوانات قرب البؤرة.' : 'لم يبدأ الفحص بعد.') + '</p>'; return; }
+  for (const x of list) {
+    const d = document.createElement('div'); d.className = 'sight';
+    const name = x.labelAr || AR[x.label] || x.label;
+    const src = `<span class="tag model">محاكاة المودل ${Math.round(x.conf * 100)}٪</span>`;
+    const why = `${name} ${Math.round(x.conf * 100)}٪ مقابل ${x.altLabelAr} ${Math.round(x.altConf * 100)}٪ — ` +
+      (x.person ? 'احتمال «شخص» أعلى من أي حيوان.' : `احتمال «${name}» أعلى من «شخص».`);
+    d.innerHTML = `<div class="ph"><img alt=""></div><div class="t"><b></b> ${src}<small></small><small></small></div>`;
+    d.querySelector('img').src = x.hasPhoto ? `/sighting/${x.index}.jpg?${Date.now()}` : '';
+    if (x.boxW > 0) {
+      const b = document.createElement('div'); b.className = 'box';
+      Object.assign(b.style, { left: x.boxX * 100 + '%', top: x.boxY * 100 + '%', width: x.boxW * 100 + '%', height: x.boxH * 100 + '%',
+        borderColor: x.person ? '#5ce6ff' : '#5ff28c' });
+      d.querySelector('.ph').appendChild(b);
+    }
+    d.querySelector('b').textContent = name;
+    const sm = d.querySelectorAll('small');
+    sm[0].textContent = `${Math.round(x.distM)} م من النار · ${ll(x.lat, x.lon)}`;
+    sm[1].textContent = 'لماذا: ' + why;
+    el.appendChild(d);
+    L.circleMarker([x.lat, x.lon], { radius: 5, color: x.person ? '#5ce6ff' : '#5ff28c', fillOpacity: 1 })
+      .bindTooltip(name).addTo(sightLayer);
+  }
+}
+
+const GAS = [['co', 'CO', 'ppm', 1], ['co2', 'CO₂', 'ppm', 0], ['pm25', 'PM2.5', 'µg/m³', 0],
+             ['voc', 'VOC', 'مؤشّر', 0], ['no2', 'NO₂', 'ppb', 0], ['o3', 'O₃', 'ppb', 0]];
+function gasView(s) {
+  if (!s.gas) return;
+  const tb = document.querySelector('#gas tbody'); tb.innerHTML = '';
+  GAS.forEach(([k, n, u, dp], i) => {
+    const tr = document.createElement('tr');
+    [n, (s.gasSensors && s.gasSensors[i] || '').split('— ')[1] || '', s.gas[k].toFixed(dp) + ' ' + u]
+      .forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  $('gMCE').textContent = s.gasReady ? s.gasMCE.toFixed(2) : '—';
+  $('gCause').textContent = s.gasReady ? s.gasCause : 'يجمع عيّنات الدخان…';
+  $('gWhy').textContent = s.gasReady ? s.gasWhy : 'يحتاج الدرون أن يقترب من عمود الدخان ليجمع ما يكفي من القراءات.';
+}
+
+function showReport(s) {
+  $('report').hidden = false;
+  $('repTitle').textContent = s.success ? 'تقرير المهمّة — أُخمد الحريق' : 'تقرير المهمّة — تعذّر الإخماد';
+  $('repImg').src = s.hasImage ? '/fire.png?' + Date.now() : '';
+  $('rRes').innerHTML = s.success ? '<span class="ok">أُخمد</span>' : '<span class="err">مطلوب إسناد</span>';
+  $('rArea').textContent = `${s.burnAreaM2.toFixed(1)} م² (دائرة قطرها ${s.fireDia.toFixed(1)} م)`;
+  $('rDmg').textContent = `${s.damagePct.toFixed(5)}٪ من غابات برقش (≈ 20 كم²)`;
+  $('rUnchecked').textContent = `قطر ${Math.round(s.uncheckedDia60)} م · ${s.uncheckedPct60.toFixed(3)}٪ من الغابة`;
+  $('rTemp').textContent = `${Math.round(s.fireC)}°م / ${Math.round(s.airC)}°م`;
+  $('rLoc').textContent = ll(s.fireLat || s.predLat, s.fireLon || s.predLon);
+  $('rHouses').textContent = houses ? `${atRisk()} من ${houses.length} مبنى ضمن 2 كم` : '—';
+  $('rBalls').textContent = `${s.balls - s.ballsLeft} من ${s.balls}`;
+  $('rCause').textContent = s.cause || '—';
+  $('rTrue').textContent = s.trueCause || '—';
+  if (s.fireLat) {
+    // أثر الحريق الفعلي (أسود) ومداه المتوقّع لو لم يُخمَد خلال ساعة (أحمر متقطّع)
+    spread.setLatLng([s.fireLat, s.fireLon]).setRadius(s.uncheckedDia60 / 2)
+      .bindTooltip('المدى المتوقّع لو لم يُخمَد خلال ساعة').addTo(map);
+    map.fitBounds(spread.getBounds().pad(0.4));
+  }
+}
+
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

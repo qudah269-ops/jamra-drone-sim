@@ -1,0 +1,13 @@
+# Unity rebuilds these
+unity/[Ll]ibrary/
+unity/[Tt]emp/
+unity/[Oo]bj/
+unity/[Ll]ogs/
+unity/[Bb]uilds/
+unity/[Uu]ser[Ss]ettings/
+unity/*.csproj
+unity/*.sln
+.DS_Store
+# fetched by web/get_models.sh
+web/model/
+web/vendor/

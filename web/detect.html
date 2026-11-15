@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جمرة — كاميرا المودل</title>
+<script src="jamra-shim.js"></script>
+<style>
+  :root { --bg:#071016; --panel:#0d1b24; --line:#1d3442; --fg:#e3f1f7; --dim:#86a3b2;
+          --cyan:#5ce6ff; --amber:#ffa940; --red:#ff3b30; --green:#5ff28c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.6 Tahoma, Arial, sans-serif; }
+  header { padding:12px 18px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:18px; color:var(--cyan); }
+  header a { color:var(--dim); }
+  main { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:14px; padding:14px 18px; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
+  .card h2 { margin:0 0 8px; font-size:15px; color:var(--cyan); }
+  .frame { position:relative; border:6px solid transparent; border-radius:12px; transition:border-color .2s; }
+  .frame.human { border-color:var(--red); animation:alarm .7s infinite; }
+  .frame.fire { border-color:var(--amber); }
+  @keyframes alarm { 50% { box-shadow:0 0 0 6px rgba(255,59,48,.35), 0 0 40px rgba(255,59,48,.6); } }
+  .banner { position:absolute; top:10px; right:10px; left:10px; padding:8px 12px; border-radius:8px;
+            font-weight:700; font-size:16px; display:none; text-align:center; }
+  .banner.show { display:block; }
+  .banner.human { background:rgba(255,59,48,.92); color:#fff; }
+  .banner.fire { background:rgba(255,169,64,.92); color:#1a0d00; }
+  canvas { width:100%; height:auto; background:#000; border-radius:6px; display:block; }
+  .src { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .src button, .src label.btn { padding:7px 14px; border:1px solid var(--line); background:#0a1820; color:var(--fg);
+    border-radius:8px; cursor:pointer; font:inherit; font-size:13px; }
+  .src button[aria-pressed="true"] { border-color:var(--cyan); color:var(--cyan); }
+  .src input[type=file] { display:none; }
+  .src .th { color:var(--dim); font-size:13px; display:flex; gap:6px; align-items:center; }
+  #status { color:var(--dim); font-size:13px; }
+  .det { border-bottom:1px dashed var(--line); padding:8px 0; }
+  .det b { font-size:15px; }
+  .bar { height:6px; background:#11252f; border-radius:3px; margin:3px 0; overflow:hidden; }
+  .bar i { display:block; height:100%; }
+  .why { color:var(--dim); font-size:12px; }
+  .note { color:var(--dim); font-size:12px; margin-top:10px; line-height:1.8; }
+  #mail { margin-top:10px; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px; }
+  #mail.ok { border-color:var(--green); color:var(--green); }
+  #mail.err { border-color:var(--red); color:#ffb3ab; }
+  label.f { display:block; margin:8px 0 3px; color:var(--dim); font-size:13px; }
+  input.f { width:100%; padding:7px 10px; background:#08151d; color:var(--fg); border:1px solid var(--line);
+            border-radius:6px; font:inherit; direction:ltr; text-align:left; }
+  details summary { cursor:pointer; color:var(--cyan); margin-top:12px; }
+  button.s { margin-top:10px; padding:7px 14px; background:#123a4a; color:var(--fg); border:1px solid var(--cyan); border-radius:6px; cursor:pointer; font:inherit; }
+</style>
+</head>
+<body>
+<header>
+  <h1>جمرة · كاميرا المودل</h1>
+  <span id="status">تحميل المودلات…</span>
+  <a href="dashboard.html">← مركز البلاغات</a>
+</header>
+<main>
+  <section class="card">
+    <div class="src">
+      <button data-src="webcam" aria-pressed="true">كاميرا الجهاز</button>
+      <button data-src="drone" aria-pressed="false">كاميرا الدرون (المحاكاة)</button>
+      <label class="btn">رفع صورة<input type="file" id="file" accept="image/*"></label>
+      <span class="th">حساسية النار <input type="range" id="th" min="10" max="60" value="30"> <span id="thv">30٪</span></span>
+    </div>
+    <div class="frame" id="frame">
+      <div class="banner" id="banner"></div>
+      <canvas id="view" width="640" height="360"></canvas>
+    </div>
+    <div id="mail">التنبيه بالبريد: بانتظار رصد إنسان.</div>
+  </section>
+  <section class="card">
+    <h2>ماذا يرى المودل</h2>
+    <div id="dets"><p class="why">لا شيء بعد.</p></div>
+    <p class="note">
+      ثلاثة مودلات تعمل داخل هذا المتصفّح، والصورة لا تغادر جهازك:<br>
+      1) مودل النار والدخان (YOLOv8: fire و smoke).<br>
+      2) YOLOv8n على COCO للأشخاص والحيوانات.<br>
+      3) كاشف اليد MediaPipe (من Google): يكفي ظهور يد ليُعَدّ «إنسان في مجال الكاميرا».<br>
+      إطار أحمر = خطر: إنسان في المجال، ويُرسل تنبيه إلى بريدك (مرّة كل دقيقة على الأكثر).
+      إطار برتقالي = نار أو دخان.<br>
+      ملاحظة: مودل النار مدرَّب على حرائق غابات؛ لهب الشمعة صغير وقد يحتاج تقريب الشمعة أو رفع الحساسية.
+    </p>
+    <details>
+      <summary>إعداد البريد (نفس إعداد مركز البلاغات)</summary>
+      <label class="f" for="mUser">بريد الإرسال (Gmail)</label><input class="f" id="mUser" placeholder="name@gmail.com">
+      <label class="f" for="mPass">كلمة مرور التطبيق</label><input class="f" id="mPass" type="password">
+      <label class="f" for="mTo">بريد الاستلام</label><input class="f" id="mTo" placeholder="name@gmail.com">
+      <button class="s" id="mSave">حفظ</button>
+      <p class="note">Gmail: فعّل التحقّق بخطوتين، ثم أنشئ «كلمة مرور تطبيق» من حساب Google وضعها هنا بنفسك. تُحفظ في هذا المتصفّح فقط.</p>
+    </details>
+  </section>
+</main>
+<video id="cam" playsinline muted autoplay hidden></video>
+
+<script src="vendor/ort/ort.min.js"></script>
+<script type="module">
+const LIFE = { 0:'person', 14:'bird', 15:'cat', 16:'dog', 17:'horse', 18:'sheep', 19:'cow', 21:'bear' };
+// أسماء الأصناف بالإنجليزي على الصناديق؛ اليد تُعرض «Human» لأنها دليل على وجود إنسان
+const AR = { person:'Human', hand:'Human', bird:'Bird', cat:'Cat', dog:'Dog', horse:'Horse', sheep:'Sheep', cow:'Cow', bear:'Bear', fire:'Fire', smoke:'Smoke' };
+const COLOR = { fire:'#ff3b30', smoke:'#dfe8ef', person:'#5ce6ff', hand:'#ff3b30' };
+const $ = id => document.getElementById(id);
+const view = $('view'), vctx = view.getContext('2d');
+const work = document.createElement('canvas');
+const wctx = work.getContext('2d', { willReadFrequently: true });
+const store = {
+  get(k) { try { return localStorage.getItem('jamra_' + k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem('jamra_' + k, v); } catch (e) {} }
+};
+// نسخة الويب (JAMRA_WEB من jamra-shim.js): الإرسال من بريد الفريق، فقط بريد الاستلام يُسأل
+const WEB = window.JAMRA_WEB;
+if (WEB) {
+  ['mUser', 'mPass'].forEach(k => { $(k).hidden = true; document.querySelector(`label[for=${k}]`).hidden = true; });
+  document.querySelector('details .note').textContent = 'التنبيه يُرسل من بريد فريق جمرة (' + WEB.sender + ') إلى البريد الذي تكتبه هنا.';
+}
+['mUser', 'mPass', 'mTo'].forEach(k => $(k).value = store.get(k));
+$('mSave').onclick = () => { ['mUser', 'mPass', 'mTo'].forEach(k => store.set(k, $(k).value.trim())); mailStatus('حُفظ إعداد البريد.', ''); };
+$('th').oninput = () => $('thv').textContent = $('th').value + '٪';
+
+let src = 'webcam', still = null, stream = null, sess = {}, size = 416, hands = null;
+let yoloDets = [], handDets = [], busy = false, lastMail = 0;
+const setStatus = t => $('status').textContent = t;
+const mailStatus = (t, cls) => { $('mail').textContent = t; $('mail').className = cls; };
+
+document.querySelectorAll('.src button').forEach(b => b.onclick = () => choose(b.dataset.src));
+async function choose(s) {
+  document.querySelectorAll('.src button').forEach(x => x.setAttribute('aria-pressed', x.dataset.src === s));
+  src = s; still = null; yoloDets = []; handDets = [];
+  if (s === 'webcam' && !stream) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+      const v = $('cam'); v.srcObject = stream; await v.play();
+    } catch (e) { setStatus('تعذّر فتح كاميرا الجهاز: ' + e.message); }
+  }
+}
+$('file').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { still = img; src = 'file'; yoloDets = []; handDets = [];
+    document.querySelectorAll('.src button').forEach(x => x.setAttribute('aria-pressed', false)); };
+  img.src = URL.createObjectURL(f);
+};
+
+async function loadYolo() {
+  // روابط نسبية للصفحة: تعمل على localhost:8090 وعلى أي مجلد في سيرفر الويب
+  ort.env.wasm.wasmPaths = new URL('vendor/ort/', location.href).href;
+  ort.env.wasm.numThreads = 1;
+  const opt = { executionProviders: ['wasm'], graphOptimizationLevel: 'all' };
+  // 416 أسرع بمرّتين تقريباً على المعالج — مناسب للكاميرا الحيّة
+  sess.fire = await ort.InferenceSession.create(`model/fire_smoke_${size}.onnx`, opt);
+  sess.coco = await ort.InferenceSession.create(`model/person_${size}.onnx`, opt);
+}
+async function loadHands() {
+  try {
+    const v = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+    const { FilesetResolver, HandLandmarker } = await import(v);
+    const fs = await FilesetResolver.forVisionTasks(v + '/wasm');
+    hands = await HandLandmarker.createFromOptions(fs, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task' },
+      runningMode: 'VIDEO', numHands: 2 });
+  } catch (e) { hands = null; console.warn('MediaPipe', e); }
+}
+
+let droneImg = null, droneBusy = false;
+async function frameSource() {
+  if (src === 'webcam') { const v = $('cam'); return v.videoWidth ? v : null; }
+  if (src === 'file') return still;
+  if (!droneBusy) {
+    droneBusy = true;
+    fetch('/cam.jpg?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.blob() : null)
+      .then(b => b ? createImageBitmap(b) : null).then(i => { if (i) droneImg = i; }).catch(() => {})
+      .finally(() => droneBusy = false);
+  }
+  return droneImg;
+}
+const dims = img => [img.videoWidth || img.naturalWidth || img.width, img.videoHeight || img.naturalHeight || img.height];
+
+// ── حلقة العرض: الصورة + اليد كل إطار، و YOLO كلّما فرغ ──────────
+async function loop() {
+  const img = await frameSource();
+  if (img) {
+    const [W, H] = dims(img);
+    view.width = 640; view.height = Math.round(640 * H / W);
+    vctx.drawImage(img, 0, 0, view.width, view.height);
+    if (hands && src !== 'drone') {
+      const r = hands.detectForVideo(img, performance.now());
+      handDets = (r.landmarks || []).map((pts, i) => {
+        const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+        const x = Math.min(...xs), y = Math.min(...ys);
+        const conf = r.handedness && r.handedness[i] ? r.handedness[i][0].score : 0.9;
+        return { label: 'hand', conf, x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y, pts };
+      });
+    } else handDets = [];
+    if (!busy && sess.coco) runYolo(img, W, H);
+    const all = yoloDets.concat(handDets);
+    draw(all);
+    react(all, img);
+  }
+  setTimeout(loop, 40);   // مؤقّت لا requestAnimationFrame: يعمل حتى لو كانت النافذة في الخلفية
+}
+
+async function runYolo(img, W, H) {
+  busy = true;
+  try {
+    const S = size; work.width = S; work.height = S;
+    const r = S / Math.max(W, H), nw = Math.round(W * r), nh = Math.round(H * r);
+    const meta = { r, ox: (S - nw) >> 1, oy: (S - nh) >> 1 };
+    wctx.fillStyle = 'rgb(114,114,114)'; wctx.fillRect(0, 0, S, S);
+    wctx.drawImage(img, 0, 0, W, H, meta.ox, meta.oy, nw, nh);
+    const d = wctx.getImageData(0, 0, S, S).data, n = S * S, t = new Float32Array(3 * n);
+    for (let i = 0; i < n; i++) { t[i] = d[i*4] / 255; t[n+i] = d[i*4+1] / 255; t[2*n+i] = d[i*4+2] / 255; }
+    const tensor = new ort.Tensor('float32', t, [1, 3, S, S]);
+    const fo = await sess.fire.run({ [sess.fire.inputNames[0]]: tensor });
+    const co = await sess.coco.run({ [sess.coco.inputNames[0]]: tensor });
+    const fth = $('th').value / 100;
+    const fires = decode(fo[sess.fire.outputNames[0]], [0, 1], meta, W, H, fth)
+      .map(b => ({ label: b.c === 0 ? 'fire' : 'smoke', conf: b.conf, x: b.x, y: b.y, w: b.w, h: b.h }));
+    const life = decode(co[sess.coco.outputNames[0]], Object.keys(LIFE).map(Number), meta, W, H, 0.35)
+      .map(b => ({ label: LIFE[b.c], conf: b.conf, x: b.x, y: b.y, w: b.w, h: b.h, scores: b.scores }));
+    yoloDets = fires.concat(life);
+    if (src === 'drone')
+      fetch('/det', { method: 'POST', body: JSON.stringify({ items: yoloDets.map(({ scores, ...k }) => k) }) }).catch(() => {});
+    setStatus(`المودلات تعمل · YOLO ${size} · كاشف اليد ${hands ? 'يعمل' : 'غير متاح (يحتاج إنترنت)'}`);
+  } catch (e) { setStatus('خطأ: ' + e.message); }
+  busy = false;
+}
+
+function decode(out, classes, meta, W, H, minConf) {
+  const a = out.dims[2], d = out.data, boxes = [];
+  for (let j = 0; j < a; j++) {
+    let best = -1, bc = 0;
+    for (const c of classes) { const v = d[(4 + c) * a + j]; if (v > bc) { bc = v; best = c; } }
+    if (bc < minConf) continue;
+    const cx = d[j], cy = d[a + j], w = d[2*a + j], h = d[3*a + j];
+    const scores = {};
+    for (const c of classes) scores[c] = d[(4 + c) * a + j];
+    boxes.push({ c: best, conf: bc, scores,
+      x: ((cx - w/2) - meta.ox) / meta.r / W, y: ((cy - h/2) - meta.oy) / meta.r / H,
+      w: w / meta.r / W, h: h / meta.r / H });
+  }
+  boxes.sort((p, q) => q.conf - p.conf);
+  const keep = [];
+  for (const b of boxes) { if (keep.every(k => iou(k, b) < 0.45)) keep.push(b); if (keep.length >= 12) break; }
+  return keep;
+}
+function iou(p, q) {
+  const x1 = Math.max(p.x, q.x), y1 = Math.max(p.y, q.y);
+  const x2 = Math.min(p.x + p.w, q.x + q.w), y2 = Math.min(p.y + p.h, q.y + q.h);
+  const i = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+  return i / (p.w * p.h + q.w * q.h - i + 1e-9);
+}
+
+function draw(items) {
+  vctx.lineWidth = 3; vctx.font = 'bold 15px Tahoma'; vctx.textBaseline = 'bottom';
+  for (const d of items) {
+    const c = COLOR[d.label] || '#5ff28c';
+    const x = d.x * view.width, y = d.y * view.height, w = d.w * view.width, h = d.h * view.height;
+    vctx.strokeStyle = c; vctx.strokeRect(x, y, w, h);
+    if (d.pts) { vctx.fillStyle = c; for (const p of d.pts) vctx.fillRect(p.x * view.width - 2, p.y * view.height - 2, 4, 4); }
+    const t = `${AR[d.label] || d.label} ${(d.conf * 100).toFixed(0)}%`;
+    const tw = vctx.measureText(t).width + 8;
+    vctx.fillStyle = c; vctx.fillRect(x, Math.max(0, y - 20), tw, 20);
+    vctx.fillStyle = '#071016'; vctx.fillText(t, x + 4, Math.max(20, y) - 3);
+  }
+}
+
+// ── الخطر: إطار أحمر + لافتة + بريد ─────────────────────────
+let listKey = null;
+function react(items, img) {
+  const humans = items.filter(d => d.label === 'person' || d.label === 'hand');
+  const fire = items.filter(d => d.label === 'fire' || d.label === 'smoke');
+  const fr = $('frame'), bn = $('banner');
+  fr.className = 'frame' + (humans.length ? ' human' : fire.length ? ' fire' : '');
+  if (humans.length) {
+    bn.className = 'banner show human';
+    bn.textContent = 'خطر: إنسان في مجال الكاميرا' + (fire.length ? ' قرب نار' : '');
+  } else if (fire.length) {
+    bn.className = 'banner show fire';
+    bn.textContent = fire.some(d => d.label === 'fire') ? 'تحذير: نار' : 'تحذير: دخان';
+  } else bn.className = 'banner';
+
+  const key = items.map(d => d.label + Math.round(d.conf * 20)).join(',');
+  if (key !== listKey) { listKey = key; list(items); }
+  if (humans.length && Date.now() - lastMail > 60000) sendAlert(humans, fire);
+}
+
+async function sendAlert(humans, fire) {
+  lastMail = Date.now();
+  const user = store.get('mUser'), pass = store.get('mPass'), to = store.get('mTo') || (WEB ? '' : user);
+  if (WEB ? !to : (!user || !pass)) { mailStatus('رُصد إنسان — البريد غير مُعدّ بعد (افتح «إعداد البريد»).', 'err'); return; }
+  const what = humans.map(h => `${AR[h.label]} ${(h.conf * 100).toFixed(0)}%`).join('، ');
+  const body = [
+    'تنبيه من جمرة: رُصد إنسان في مجال الكاميرا.',
+    'الوقت: ' + new Date().toLocaleString('ar-JO'),
+    'ما رآه المودل: ' + what,
+    fire.length ? 'وفي المجال أيضاً: ' + fire.map(f => `${AR[f.label]} ${(f.conf * 100).toFixed(0)}%`).join('، ') : 'لا نار في المجال.',
+    'صورة اللحظة مرفقة.'
+  ].join('\n');
+  const b64 = view.toDataURL('image/jpeg', WEB ? 0.6 : 0.85).split(',')[1];   // EmailJS المجاني يحدّ حجم الطلب
+  mailStatus('رُصد إنسان — جارٍ إرسال التنبيه إلى ' + to + '…', '');
+  try {
+    const r = await fetch('/email', { method: 'POST', body: JSON.stringify({
+      host: 'smtp.gmail.com', port: 587, user, pass, to,
+      subject: 'جمرة — تنبيه: إنسان في مجال الكاميرا', body, attachFire: false, sightings: [], imageB64: b64 }) }).then(x => x.json());
+    mailStatus(r.ok ? `أُرسل التنبيه إلى ${to} الساعة ${new Date().toLocaleTimeString('ar-JO')}` : 'تعذّر الإرسال: ' + r.error, r.ok ? 'ok' : 'err');
+  } catch (e) { mailStatus('تعذّر الإرسال: المحاكاة في يونتي يجب أن تكون شغّالة (Play).', 'err'); }
+}
+
+function list(items) {
+  const el = $('dets');
+  if (!items.length) { el.innerHTML = '<p class="why">لا كشف في هذه اللقطة.</p>'; return; }
+  el.innerHTML = '';
+  for (const d of items) {
+    const div = document.createElement('div'); div.className = 'det';
+    let why;
+    if (d.label === 'hand') why = 'MediaPipe: 21 hand landmarks → Human';
+    else if (d.scores) {
+      const top = Object.entries(d.scores).map(([c, v]) => [LIFE[c], v]).sort((p, q) => q[1] - p[1]).slice(0, 3);
+      why = 'Why: ' + top.map(([n, v]) => `${AR[n]} ${(v * 100).toFixed(0)}%`).join(' · ');
+    } else why = 'JAMRA fire/smoke model';
+    const c = COLOR[d.label] || '#5ff28c';
+    div.innerHTML = `<b style="color:${c}">${AR[d.label] || d.label}</b> ${(d.conf * 100).toFixed(0)}%
+      <div class="bar"><i style="width:${(d.conf * 100).toFixed(0)}%;background:${c}"></i></div><div class="why"></div>`;
+    div.querySelector('.why').textContent = why;
+    el.appendChild(div);
+  }
+}
+
+choose('webcam');
+Promise.all([loadYolo(), loadHands()])
+  .then(() => { setStatus('المودلات جاهزة'); loop(); })
+  .catch(e => setStatus('تعذّر تحميل المودل: ' + e.message));
+</script>
+</body>
+</html>
